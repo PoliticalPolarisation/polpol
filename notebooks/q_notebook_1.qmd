@@ -5,9 +5,9 @@ format: html
 editor: visual
 ---
 
-## Explore segregation via k-means
+## Explore segregation of ethnicity via k-means
 
-Load the dataset. I have made a slim version of the dataset which contains the variable of interest as suggested by Jochem.
+Load the dataset. I have made a slim version of the dataset which contains the variable of interest (i.e., ned vs n_ned) as suggested by Jochem.
 
 ```{r, echo=FALSE, message=FALSE}
 rm(list = ls())
