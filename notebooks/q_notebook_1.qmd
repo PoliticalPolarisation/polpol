@@ -16,12 +16,19 @@ library(dplyr)
 library(ggplot2)
 library(sf)
 ```
+```{r, eval=FALSE}
+getwd()
+load("../data/20230424raster.rda")
+```
 
 ```{r}
 dir <- "/Users/evaviviani/Library/CloudStorage/OneDrive-NetherlandseScienceCenter/polpol_tolsma/"
 
 load(paste0(dir, '20230424raster.rda'))
+```
 
+
+```{r}
 # make english-friendly
 x$town_name <- stringr::str_replace_all(string = x$GM_NAAM, 
                                                  pattern = " ", repl = "")
@@ -37,11 +44,19 @@ Sneak peek of the dataset. `grid_cell` and `town_name` self explanatory. `ned` =
 
 ```{r}
 head(polpol)
+hist(polpol$ned)
+hist(polpol$n_ned)
+
+summary(polpol$ned)
+table(polpol$n_ned)
 ```
 
 ## Map of the coordinates
 
 Get density of points in 2D
+
+<!---we removed unpopulated grid cells--->
+
 
 ```{r}
 get_density <- function(x, y, ...) {
@@ -68,6 +83,9 @@ ggplot(data = polpol) +
 
 `ned` and `n_ned` are essentially a single feature variable (i.e., `dutchness`). They are correlated as of course if the number of dutch increases, it will increase also the number of non-dutch, as it means that area they are living is bigger/densely populated. Let's check:
 
+<!---not bigger, densely populated, yes there is correlation but not perfect because...SEGREGATION---> 
+
+
 ```{r}
 ggplot(polpol, aes(x = ned, y = n_ned)) +
   geom_point()
@@ -75,6 +93,9 @@ ggplot(polpol, aes(x = ned, y = n_ned)) +
 ```
 
 The scales seem also a bit different. OK, let's collapse the information within `ned` and `n_ned` in a single variable, let's call it `delta.` This will be the proportion of dutch inhabitants over the total. Scores close to 1 will indicate prevalence of dutch, close to 0 to non-dutch.
+
+<!---please do not do this. this way you are removing interesting information from our dataset
+FYI there is quite some debate on whether you want to contruct segregation measures based on proportions or on numbers.---> 
 
 ```{r}
 polpol$delta <- (polpol$ned - polpol$n_ned) / (polpol$ned + polpol$n_ned)
@@ -84,14 +105,17 @@ polpol$sum <- (polpol$ned + polpol$n_ned)
 Let's apply K-means now. I hypothesise 3 clusters as being informative: dutch, non-dutch, and equal number of dutch/non-dutch.
 
 ```{r}
-set.seed(1)
+set.seed(1765445)
 polpol_kmeans <- kmeans(polpol$delta, centers = 3, iter.max = 15)
+polpol_kmeans2 <- kmeans(cbind(polpol$ned, polpol$n_ned), centers = 3, iter.max = 15)
+
 ```
 
 `polpol_kmeans` object contains the cluster assignments, cluster centers, and other information about the result of the k-means algorithm. You can access these by typing `polpol_kmeans$cluster` and `polpol_kmeans$centers`
 
 ```{r}
 polpol_kmeans$centers
+polpol_kmeans2$centers
 ```
 
 ```{r}
@@ -102,6 +126,7 @@ Let's add the cluster labels to the dataset:
 
 ```{r}
 polpol$km <- polpol_kmeans$cluster
+polpol$km2 <- polpol_kmeans2$cluster
 ```
 
 Plot the cluster labels obtained on `delta` over the ned/n_ned points
@@ -114,6 +139,19 @@ ggplot(polpol, aes(x = log(ned), y = log(n_ned), colour = as.factor(km))) +
 
 ```
 
+```{r, warning=FALSE}
+ggplot(polpol, aes(x = log(ned), y = log(n_ned), colour = as.factor(km2))) +
+  geom_point(size = 2) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  theme_minimal()
+
+```
+
+mmm,....
+
+
+
+
 Now let's plot the clustered labels on the X, Y coordinates:
 
 ```{r}
@@ -122,6 +160,8 @@ ggplot(data = polpol) +
   theme_void() 
 ```
 
+
+
 So, 1 (pink) tells me that there is prevalence of dutch over non-dutch. 3 (blue) tells me the opposite, while 2 (green) tells me that there is an equivalent number of people dutch/non-dutch. Let's zoom in into a city to have a better visualisation:
 
 ```{r}
@@ -129,6 +169,27 @@ ggplot(data = polpol |> filter(town_name == "Utrecht")) +
   geom_point(aes(x = X, y = Y, colour = as.factor(km)), size = 0.8) +
   theme_void() 
 ```
+
+
+
+```{r}
+ggplot(data = polpol) +
+  geom_point(aes(x = X, y = Y, colour = as.factor(km2)), size = 0.01) +
+  theme_void() 
+```
+
+- green rural
+- pink: heavily populated by dutch
+- blue: heavily populated by non-dutch
+
+
+```{r}
+ggplot(data = polpol |> filter(town_name == "Utrecht")) +
+  geom_point(aes(x = X, y = Y, colour = as.factor(km2)), size = 0.8) +
+  theme_void() 
+```
+
+
 
 ```{r}
 neigh_homogeneity <- function(df, x_col, y_col, kmean_col, radius = 2000) {
